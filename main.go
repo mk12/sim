@@ -4,262 +4,383 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
 func usage() {
-	fmt.Printf(`
-Usage: %s [command]
+	fmt.Printf("Usage: %s [command]", os.Args[0])
+	fmt.Print(`
 
-Manages program symlinks in $XDG_BIN_HOME.
+Manage program symlinks in $XDG_BIN_HOME
 
 Commands:
-  path
-    Print the install path
-  list [-pl] [--path] [--link]
-    List programs (alias: ls)
-  install [-fk] [--force] [--keep-extension]
-    Install programs (alias: i)
+  help        Print help message
+  path        Show install path
+  ls, list    List programs
+  i, install  Install programs
+  rm, remove  Remove programs
+  prune       Remove broken symlinks
+  doctor      Check for issues
+
+Options:
+  list
+    -p, --path      Print full paths
+    -l, --link      Print symlink targets
+
+  install
+    PROGRAM ...     Paths to programs
+    -f, --force     Overwrite existing symlinks
+    -k, --keep-ext  Keep extensions in symlink names
+
   remove
-    Remove programs (alias: rm)
-  prune
-    Remove broken symlinks
-  doctor
-    Check for issues
-  help
-    Show this help message
-`,
-		os.Args[0])
+    PROGRAM ...     Symlink names, paths, or target paths
+    -a, --all       Remove all programs
+    -s, --self      Remove this program itself
+`)
 }
 
 func main() {
-	log.SetFlags(0)
-	var cmd string
+	var arg string
 	if len(os.Args) > 1 {
-		cmd = os.Args[1]
+		arg = os.Args[1]
 	}
-	if cmd == "" || cmd == "help" || cmd == "-h" || cmd == "--help" {
+	if arg == "" || arg == "help" || arg == "-h" || arg == "--help" {
 		usage()
 		return
 	}
+	cmd := command{name: arg}
 	args := parseArguments(os.Args[2:])
-	switch cmd {
-	case "path":
-		cmdPath(args)
-	case "ls", "list":
-		cmdList(args)
-	case "i", "install":
-		cmdInstall(args)
-	case "rm", "remove":
-		cmdRemove(args)
-	case "prune":
-		cmdPrune(args)
-	case "doctor":
-		cmdDoctor(args)
-	default:
-		log.Fatalf("%s: unrecognized command", cmd)
+	cmd.dispatch(args)
+	if cmd.failed {
+		os.Exit(1)
 	}
 }
 
-func cmdPath(args arguments) {
-	args.validate(noPositional)
-	fmt.Println(bin())
+type command struct {
+	name   string
+	failed bool
+	binDir string
 }
 
-func cmdList(args arguments) {
+func (c *command) dispatch(args arguments) {
+	switch c.name {
+	case "path":
+		c.path(args)
+	case "ls", "list":
+		c.list(args)
+	case "i", "install":
+		c.install(args)
+	case "rm", "remove":
+		c.remove(args)
+	case "prune":
+		c.prune(args)
+	case "doctor":
+		c.doctor(args)
+	default:
+		c.fatal("%s: unrecognized command", c.name)
+	}
+}
+
+func (c *command) path(args arguments) {
+	c.validate(args, noPositional)
+	fmt.Println(c.bin())
+}
+
+func (c *command) list(args arguments) {
 	showPath := args.bool("-p", "--path")
 	showLink := args.bool("-l", "--link")
-	args.validate(noPositional)
-	dir := bin()
-	for _, file := range files(dir) {
-		if file.IsDir() {
+	c.validate(args, noPositional)
+	for _, file := range c.files() {
+		if file.IsDir() || file.Type()&os.ModeSymlink == 0 {
 			continue
 		}
-		path := filepath.Join(dir, file.Name())
+		path := filepath.Join(c.bin(), file.Name())
 		if showPath {
 			fmt.Print(path)
 		} else {
 			fmt.Print(file.Name())
 		}
-		if showLink && file.Type()&os.ModeSymlink != 0 {
-			target, err := os.Readlink(path)
+		if showLink {
+			relOrAbsTarget, err := os.Readlink(path)
 			if err != nil {
-				log.Fatalf("list: %s: %s", file.Name(), err)
+				c.fatal("%s: %s", file.Name(), err)
 			}
+			absTarget := ensureAbs(c.bin(), relOrAbsTarget)
 			if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
-				fmt.Printf(" %s %s %s", brightBlack("->"), red(target), brightBlack("(broken)"))
+				fmt.Printf(" %s %s %s", brightBlack("->"), red(absTarget), brightBlack("(broken)"))
 			} else if err != nil {
-				log.Fatalf("list: %s: %s", file.Name(), err)
+				c.fatal("%s: %s", file.Name(), err)
 			} else {
-				fmt.Printf(" %s %s", brightBlack("->"), blue(target))
+				fmt.Printf(" %s %s", brightBlack("->"), blue(absTarget))
 			}
 		}
 		fmt.Println()
 	}
 }
 
-func cmdInstall(args arguments) {
+func (c *command) install(args arguments) {
 	force := args.bool("-f", "--force")
-	keepExt := args.bool("-k", "--keep-extension")
-	args.validate(atLeastOnePositional)
-	dir := bin()
-	fmt.Printf("Using directory %s\n", dir)
-	success := true
+	keepExt := args.bool("-k", "--keep-ext")
+	c.validate(args, atLeastOnePositional)
 	for _, arg := range args.pos {
-		fail := func(msg interface{}) {
-			log.Printf("%s: %s", arg, msg)
-			success = false
-		}
-		var name, target string
-		if info, err := os.Stat(arg); err != nil {
-			fail(err)
+		var (
+			info                 fs.FileInfo
+			absTarget, relTarget string
+			err                  error
+		)
+		if info, err = os.Stat(arg); errors.Is(err, fs.ErrNotExist) {
+			c.error("%s: file not found", arg)
+			continue
+		} else if err != nil {
+			c.error("%s: %s", arg, err)
 			continue
 		} else if info.IsDir() {
-			fail("is a directory")
+			c.error("%s: is a directory", arg)
 			continue
 		} else if !isExecutable(info.Mode()) {
-			fail("not an executable")
+			c.error("%s: not an executable", arg)
 			continue
-		} else if abs, err := filepath.Abs(arg); err != nil {
-			fail(err)
+		} else if absTarget, err = filepath.Abs(arg); err != nil {
+			c.error("%s: %s", arg, err)
 			continue
-		} else {
-			target = abs
-			name = info.Name()
-			if !keepExt {
-				name = strings.TrimSuffix(name, filepath.Ext(name))
-			}
+		} else if strings.HasPrefix(absTarget, c.bin()+string(filepath.Separator)) {
+			c.error("%s: file is already in %s", arg, c.bin())
+			continue
+		} else if relTarget, err = filepath.Rel(c.bin(), absTarget); err != nil {
+			c.error("%s: %s", arg, err)
+			continue
 		}
-		fmt.Printf("Symlinking %s %s %s\n", name, brightBlack("->"), blue(target))
-		path := filepath.Join(dir, name)
+		name := info.Name()
+		if !keepExt {
+			name = strings.TrimSuffix(name, filepath.Ext(name))
+		}
+		fmt.Printf("Installing %s %s %s", name, brightBlack("->"), blue(absTarget))
+		path := filepath.Join(c.bin(), name)
 		if force {
 			os.Remove(path)
 		}
-		if err := os.Symlink(target, path); errors.Is(err, os.ErrExist) {
+		if err := os.Symlink(relTarget, path); errors.Is(err, os.ErrExist) {
 			existing, err := os.Readlink(path)
 			if err != nil {
-				fail(err)
-				continue
-			}
-			if target != existing {
-				fail("already installed (overwrite with --force)")
-				continue
+				fmt.Println()
+				c.error("%s: %s", arg, err)
+			} else if relTarget != existing {
+				fmt.Println()
+				c.error("%s: program exists (overwrite with --force)", arg)
+			} else {
+				fmt.Printf(" %s\n", brightBlack("(already installed)"))
 			}
 		} else if err != nil {
-			fail(err)
-			continue
+			fmt.Println()
+			c.error("%s: %s", arg, err)
+		} else {
+			fmt.Println()
 		}
-	}
-	if !success {
-		os.Exit(1)
 	}
 }
 
-func cmdRemove(args arguments) {
-	fwd := make(map[string]string)
-	bwd := make(map[string]string)
-	args.validate(atLeastOnePositional)
-	dir := bin()
-	for _, file := range files(dir) {
+func (c *command) remove(args arguments) {
+	removeAll := args.bool("-a", "--all")
+	removeSelf := args.bool("-s", "--self")
+	rc := newRemoveCommand(c)
+	if !(removeAll || removeSelf) {
+		rc.validate(args, atLeastOnePositional)
+		rc.removeSpecific(args)
+		return
+	}
+	rc.validate(args, noPositional)
+	if removeAll {
+		rc.removeAll()
+	}
+	if removeSelf {
+		rc.removeSelf()
+	}
+}
+
+type removeCommand struct {
+	*command
+	nameToAbsTarget, pathToAbsTarget, absTargetToName map[string]string
+	// Name of the symlink to this program itself.
+	self string
+}
+
+func newRemoveCommand(cmd *command) removeCommand {
+	rc := removeCommand{
+		command:         cmd,
+		nameToAbsTarget: make(map[string]string),
+		pathToAbsTarget: make(map[string]string),
+		absTargetToName: make(map[string]string),
+	}
+	self, err := os.Executable()
+	if err != nil {
+		rc.error("finding self path: %s", err)
+	} else if self, err = filepath.EvalSymlinks(self); err != nil {
+		rc.error("resolving self path: %s", err)
+	}
+	for _, file := range rc.files() {
 		if file.IsDir() || file.Type()&os.ModeSymlink == 0 {
 			continue
 		}
-		path := filepath.Join(dir, file.Name())
-		target, err := os.Readlink(path)
+		path := filepath.Join(rc.bin(), file.Name())
+		relOrAbsTarget, err := os.Readlink(path)
 		if err != nil {
-			log.Fatalf("remove: %s: %s", file.Name(), err)
+			rc.fatal("%s: %s", file.Name(), err)
 		}
-		fwd[file.Name()] = target
-		bwd[target] = file.Name()
+		absTarget := ensureAbs(rc.bin(), relOrAbsTarget)
+		rc.nameToAbsTarget[file.Name()] = absTarget
+		rc.pathToAbsTarget[path] = absTarget
+		rc.absTargetToName[absTarget] = file.Name()
+		if rc.self == "" && self != "" {
+			// We need to follow all symlinks because it's unspecified whether
+			// os.Executable() follows a symlink.
+			resolved, err := filepath.EvalSymlinks(absTarget)
+			if err != nil {
+				rc.error("resolving %s: %s", file.Name(), err)
+			} else if resolved == self {
+				rc.self = file.Name()
+			}
+		}
 	}
-	fmt.Printf("Using directory %s\n", dir)
+	return rc
+}
+
+func (rc *removeCommand) removeAll() {
+	for name, absTarget := range rc.nameToAbsTarget {
+		if name == rc.self {
+			continue
+		}
+		path := filepath.Join(rc.bin(), name)
+		fmt.Printf("Removing %s %s %s\n", name, brightBlack("->"), blue(absTarget))
+		if err := os.Remove(path); err != nil {
+			rc.error("%s: %s", name, err)
+		}
+	}
+}
+
+func (rc *removeCommand) removeSelf() {
+	name := rc.self
+	if name == "" {
+		rc.fatal("remove --self: already removed")
+	}
+	absTarget, ok := rc.nameToAbsTarget[name]
+	if !ok {
+		panic("self not in nameToAbsTarget")
+	}
+	fmt.Printf("Removing %s %s %s\n", name, brightBlack("->"), blue(absTarget))
+	path := filepath.Join(rc.bin(), name)
+	if err := os.Remove(path); err != nil {
+		rc.error("%s: %s", name, err)
+	}
+}
+
+func (rc *removeCommand) removeSpecific(validatedArgs arguments) {
 	find := func(arg string) (string, string, bool) {
-		if target, ok := fwd[arg]; ok {
-			return arg, target, true
+		if absTarget, ok := rc.nameToAbsTarget[arg]; ok {
+			return arg, absTarget, true
 		}
 		abs, err := filepath.Abs(arg)
 		if err != nil {
-			if name, ok := bwd[abs]; ok {
-				return name, abs, true
-			}
+			return "", "", false
+		}
+		if absTarget, ok := rc.pathToAbsTarget[abs]; ok {
+			return filepath.Base(arg), absTarget, true
+		}
+		if name, ok := rc.absTargetToName[abs]; ok {
+			return name, abs, true
 		}
 		return "", "", false
 	}
-	success := true
-	for _, arg := range args.pos {
-		if name, target, ok := find(arg); ok {
-			path := filepath.Join(dir, name)
-			fmt.Printf("Removing %s %s\n", name, brightBlack(fmt.Sprintf("(%s)", target)))
-			if err := os.Remove(path); err != nil {
-				log.Printf("remove: %s: %s", arg, err)
-			}
-		} else {
-			log.Printf("%s: no such program", arg)
-			success = false
+	for _, arg := range validatedArgs.pos {
+		name, absTarget, ok := find(arg)
+		if !ok {
+			rc.error("%s: no such program", arg)
+			continue
 		}
-	}
-	if !success {
-		os.Exit(1)
+		if name == rc.self {
+			rc.error("%s: if you really want to remove it, use --self", arg)
+			continue
+		}
+		path := filepath.Join(rc.bin(), name)
+		fmt.Printf("Removing %s %s %s\n", name, brightBlack("->"), blue(absTarget))
+		if err := os.Remove(path); err != nil {
+			rc.error("%s: %s", arg, err)
+		}
 	}
 }
 
-func cmdPrune(args arguments) {
-	args.validate(noPositional)
-	dir := bin()
-	for _, file := range files(dir) {
+func (c *command) prune(args arguments) {
+	c.validate(args, noPositional)
+	for _, file := range c.files() {
 		if file.IsDir() {
 			continue
 		}
-		path := filepath.Join(dir, file.Name())
+		path := filepath.Join(c.bin(), file.Name())
 		if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
 			fmt.Printf("Removing %s\n", file.Name())
 			if err := os.Remove(path); err != nil {
-				log.Printf("prune: %s: %s", file.Name(), err)
+				c.error("%s: %s", file.Name(), err)
 			}
 		} else if err != nil {
-			log.Fatalf("prune: %s: %s", file.Name(), err)
+			c.fatal("%s: %s", file.Name(), err)
 		}
 	}
 }
 
-func cmdDoctor(args arguments) {
-	args.validate(noPositional)
-	dir := bin()
-	success := true
-	for _, file := range files(dir) {
-		path := filepath.Join(dir, file.Name())
-		fail := func(msg string) {
-			fmt.Printf("%s: %s\n", msg, path)
-			success = false
-		}
+func (c *command) doctor(args arguments) {
+	c.validate(args, noPositional)
+	targetToName := make(map[string]string)
+	for _, file := range c.files() {
+		path := filepath.Join(c.bin(), file.Name())
 		if file.IsDir() {
-			fail("Unexpected directory")
+			c.error("%s: unexpected directory", path)
 			continue
 		}
 		if file.Type().IsRegular() && strings.HasPrefix(file.Name(), ".") {
 			continue
 		}
 		if file.Type()&os.ModeSymlink == 0 {
-			fail("Not a symlink")
+			c.error("%s: not a symlink", path)
 			continue
 		}
 		if info, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
-			fail("Broken symlink")
+			c.error("%s: broken symlink", path)
 			continue
 		} else if err != nil {
-			fail(err.Error())
+			c.error("%s", err)
 			continue
 		} else if !isExecutable(info.Mode()) {
-			fail("Not an executable")
+			c.error("%s: not an executable", path)
 			continue
 		}
+		relOrAbsTarget, err := os.Readlink(path)
+		if err != nil {
+			c.error("%s", err)
+			continue
+		}
+		if filepath.IsAbs(relOrAbsTarget) {
+			c.error("%s: symlink is absolute (should be relative)", path)
+			continue
+		}
+		absTarget := ensureAbs(c.bin(), relOrAbsTarget)
+		if otherName, ok := targetToName[absTarget]; ok {
+			c.error("both %s and %s map to the same executable, %s", file.Name(), otherName, absTarget)
+			continue
+		}
+		targetToName[absTarget] = file.Name()
 	}
-	if !success {
-		os.Exit(1)
-	}
+}
+
+func (c *command) error(format string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, format, args...)
+	fmt.Fprintln(os.Stderr)
+	c.failed = true
+}
+
+func (c *command) fatal(format string, args ...interface{}) {
+	c.error(format, args...)
+	os.Exit(1)
 }
 
 type arguments struct {
@@ -288,26 +409,21 @@ const (
 	atLeastOnePositional
 )
 
-func (a *arguments) validate(opts validateOpts) {
-	success := true
-	fail := func(format string, args ...interface{}) {
-		log.Printf(format, args...)
-		success = false
-	}
-	for flag := range a.flags {
-		fail("%s: unrecognized flag", flag)
+func (c *command) validate(args arguments, opts validateOpts) {
+	for flag := range args.flags {
+		c.fatal("%s: %s: unrecognized flag", c.name, flag)
 	}
 	switch opts {
 	case noPositional:
-		if len(a.pos) > 0 {
-			fail("%s: unexpected argument", a.pos[0])
+		if len(args.pos) > 0 {
+			c.fatal("%s: %s: unexpected argument", c.name, args.pos[0])
 		}
 	case atLeastOnePositional:
-		if len(a.pos) == 0 {
-			fail("expected at least one argument")
+		if len(args.pos) == 0 {
+			c.fatal("%s: expected at least one argument", c.name)
 		}
 	}
-	if !success {
+	if c.failed {
 		os.Exit(1)
 	}
 }
@@ -324,30 +440,40 @@ func (a *arguments) bool(short, long string) bool {
 	return false
 }
 
-func bin() string {
-	var rel string
-	if dir, ok := os.LookupEnv("XDG_BIN_HOME"); ok {
-		rel = dir
-	} else {
-		rel = filepath.Join(os.Getenv("HOME"), ".local", "bin")
+func (c *command) bin() string {
+	if c.binDir != "" {
+		return c.binDir
 	}
-	abs, err := filepath.Abs(rel)
-	if err != nil {
-		log.Fatalf("getting absolute path to %s: %s", rel, err)
+	key := "XDG_BIN_HOME"
+	if c.binDir = os.Getenv(key); c.binDir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			c.fatal("%s", err)
+		}
+		c.binDir = filepath.Join(home, ".local", "bin")
+	} else if !filepath.IsAbs(c.binDir) {
+		c.fatal("%s: %s should be absolute", c.binDir, key)
 	}
-	return abs
+	return c.binDir
 }
 
-func files(dir string) []fs.DirEntry {
-	files, err := os.ReadDir(dir)
+func (c *command) files() []fs.DirEntry {
+	files, err := os.ReadDir(c.bin())
 	if err != nil {
-		log.Fatalf("reading %s: %s", dir, err)
+		c.fatal("reading %s: %s", c.bin(), err)
 	}
 	return files
 }
 
 func isExecutable(mode fs.FileMode) bool {
 	return mode&0o111 != 0
+}
+
+func ensureAbs(base string, relOrAbs string) string {
+	if filepath.IsAbs(relOrAbs) {
+		return relOrAbs
+	}
+	return filepath.Join(base, relOrAbs)
 }
 
 var noColor = func() bool {

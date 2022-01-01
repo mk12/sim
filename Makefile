@@ -1,13 +1,19 @@
 XDG_BIN_HOME ?= ~/.local/bin
 
-program := out/sim
+built := out/sim
+installed := $(XDG_BIN_HOME)/$(notdir $(built))
 
-.PHONY: all install
+.PHONY: all install uninstall
 
-all: $(program)
+all: $(built)
 
-$(program): go.mod $(wildcard *.go)
+install: $(installed)
+
+uninstall: $(built)
+	$< remove --self
+
+$(built): go.mod $(wildcard *.go)
 	go build -o $@
 
-install: $(program)
-	ln -sf $(XDG_BIN_HOME)/$(basename $@) $(abspath $^)
+$(installed): | $(built)
+	$| install $|

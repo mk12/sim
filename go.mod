@@ -1,3 +1,3 @@
-module github.com/mk12/simmer
+module github.com/mk12/sim
 
 go 1.17
