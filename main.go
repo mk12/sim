@@ -1,3 +1,5 @@
+// Copyright 2022 Mitchell Kember. Subject to the MIT License.
+
 package main
 
 import (
