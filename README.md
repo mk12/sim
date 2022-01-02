@@ -10,24 +10,37 @@ If you no longer wish to use Sim, run `make uninstall`.
 
 ## Usage
 
-- `sim help` prints a help message.
-- `sim list` lists installed programs.
-    - With `--path`, it prints the full path.
-    - With `--link`, it prints symlink target paths.
-- `sim install foo.sh` installs `foo`.
-    - With more arguments it installs multiple programs.
-    - With `--force`, it overwrites an existing symlink.
-        - This is only needed if the new target path is different.
-    - With `--keep-ext`, it names the symlink `foo.sh`.
-- `sim remove foo` removes `foo`.
-    - `foo` can be a link name, relative to `$XDG_BIN_HOME`.
-    - ... or a link path, relative to the working directory.
-    - ... or a target path, relative to the working directory.
-    - With more arguments it removes multiple programs.
-    - With `--all`, it removes all programs except `sim` itself.
-    - With `--self`, it removes `sim` itself.
-- `sim prune` removes broken symlinks.
-- `sim doctor` checks for issues.
+```
+Usage: sim [COMMAND] [OPTION ...]
+
+Manage program symlinks in $XDG_BIN_HOME
+
+Commands:
+  help        Print help message
+  path        Show install path
+  ls, list    List programs
+  i, install  Install programs
+  rm, remove  Remove programs
+  prune       Remove broken symlinks
+  doctor      Check for issues
+
+Options:
+  list
+    -p, --path      Print full paths
+    -l, --link      Print symlink targets
+
+  install
+    PROGRAM ...     Paths to programs
+    -f, --force     Overwrite existing symlinks
+    -k, --keep-ext  Keep extensions in symlink names
+
+  remove
+    PROGRAM ...     Symlink names, symlink paths, or target paths
+    -q, --quiet     Ignore arguments that match nothing
+    -t, --target    Match target paths only
+    -a, --all       Remove all programs
+    -s, --self      Remove this program itself
+```
 
 ## License
 

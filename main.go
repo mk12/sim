@@ -10,7 +10,7 @@ import (
 )
 
 func usage() {
-	fmt.Printf("Usage: %s [command]", os.Args[0])
+	fmt.Printf("Usage: %s [COMMAND] [OPTION ...]", os.Args[0])
 	fmt.Print(`
 
 Manage program symlinks in $XDG_BIN_HOME
@@ -35,7 +35,9 @@ Options:
     -k, --keep-ext  Keep extensions in symlink names
 
   remove
-    PROGRAM ...     Symlink names, paths, or target paths
+    PROGRAM ...     Symlink names, symlink paths, or target paths
+    -q, --quiet     Ignore arguments that match nothing
+    -t, --target    Match target paths only
     -a, --all       Remove all programs
     -s, --self      Remove this program itself
 `)
@@ -182,9 +184,11 @@ func (c *command) install(args arguments) {
 }
 
 func (c *command) remove(args arguments) {
+	rc := newRemoveCommand(c)
+	rc.quiet = args.bool("-q", "--quiet")
+	rc.targetOnly = args.bool("-t", "--target")
 	removeAll := args.bool("-a", "--all")
 	removeSelf := args.bool("-s", "--self")
-	rc := newRemoveCommand(c)
 	if !(removeAll || removeSelf) {
 		rc.validate(args, atLeastOnePositional)
 		rc.removeSpecific(args)
@@ -201,6 +205,8 @@ func (c *command) remove(args arguments) {
 
 type removeCommand struct {
 	*command
+	quiet, targetOnly bool
+	// Maps between symlinks and their targets.
 	nameToAbsTarget, pathToAbsTarget, absTargetToName map[string]string
 	// Name of the symlink to this program itself.
 	self string
@@ -277,15 +283,17 @@ func (rc *removeCommand) removeSelf() {
 
 func (rc *removeCommand) removeSpecific(validatedArgs arguments) {
 	find := func(arg string) (string, string, bool) {
-		if absTarget, ok := rc.nameToAbsTarget[arg]; ok {
-			return arg, absTarget, true
-		}
 		abs, err := filepath.Abs(arg)
 		if err != nil {
-			return "", "", false
+			rc.fatal("%s: %s", arg, err)
 		}
-		if absTarget, ok := rc.pathToAbsTarget[abs]; ok {
-			return filepath.Base(arg), absTarget, true
+		if !rc.targetOnly {
+			if absTarget, ok := rc.nameToAbsTarget[arg]; ok {
+				return arg, absTarget, true
+			}
+			if absTarget, ok := rc.pathToAbsTarget[abs]; ok {
+				return filepath.Base(arg), absTarget, true
+			}
 		}
 		if name, ok := rc.absTargetToName[abs]; ok {
 			return name, abs, true
@@ -295,7 +303,9 @@ func (rc *removeCommand) removeSpecific(validatedArgs arguments) {
 	for _, arg := range validatedArgs.pos {
 		name, absTarget, ok := find(arg)
 		if !ok {
-			rc.error("%s: no such program", arg)
+			if !rc.quiet {
+				rc.error("%s: no such program", arg)
+			}
 			continue
 		}
 		if name == rc.self {
