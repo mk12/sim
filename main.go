@@ -401,12 +401,17 @@ func newLsRmCommand(cmd *command) lsRmCommand {
 }
 
 func (c *lsRmCommand) perform(action func(match), args []string) {
+	seen := make(map[string]struct{})
 	for _, arg := range args {
 		matches := c.find(arg)
 		if !c.ignoreNoMatch && len(matches) == 0 {
 			c.error("%s: no match found", arg)
 		}
 		for _, m := range matches {
+			if _, ok := seen[m.name]; ok {
+				continue
+			}
+			seen[m.name] = struct{}{}
 			action(m)
 		}
 	}
