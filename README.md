@@ -1,6 +1,8 @@
 # Sim
 
-Sim is a command-line tool that manages program symlinks in `$XDG_BIN_HOME`.
+Sim is a command-line tool that manages programs in `$XDG_BIN_HOME`.
+
+It's called "Sim" because it makes **sym**links by default.
 
 ## Get started
 
@@ -13,7 +15,7 @@ If you no longer wish to use Sim, run `make uninstall`.
 ```
 Usage: sim [COMMAND] [OPTION ...]
 
-Manage program symlinks in $XDG_BIN_HOME
+Manage programs in $XDG_BIN_HOME
 
 Commands:
   help        Print help message
@@ -27,18 +29,20 @@ Commands:
 Options:
   list
     -p, --path      Print full paths
-    -l, --link      Print symlink targets
+    -t, --target    Print symlink targets
 
   install
     PROGRAM ...     Paths to programs
-    -f, --force     Overwrite existing symlinks
-    -k, --keep-ext  Keep extensions in symlink names
+    -f, --force     Overwrite existing programs
+    -c, --copy      Copy instead of symlinking
+    -m, --move      Move instead of symlinking
+    -d, --drop-ext  Drop file extension
 
   remove
-    PROGRAM ...     Symlink names, symlink paths, or target paths
+    PROGRAM ...     Program names/paths or symlink target paths
     -q, --quiet     Ignore arguments that match nothing
-    -t, --target    Match target paths only
-    -a, --all       Remove all programs
+    -t, --target    Only match symlink target paths
+    -a, --all       Remove all programs except this one
     -s, --self      Remove this program itself
 ```
 
