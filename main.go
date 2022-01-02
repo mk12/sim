@@ -29,22 +29,22 @@ Commands:
 
 Options:
   list
-    -p, --path      Print full paths
-    -t, --target    Print symlink targets
+    -p, --path    Print full paths
+    -t, --target  Print symlink targets
 
   install
-    PROGRAM ...     Paths to programs
-    -f, --force     Overwrite existing programs
-    -c, --copy      Copy instead of symlinking
-    -m, --move      Move instead of symlinking
-    -d, --drop-ext  Drop file extension
+    PROGRAM ...   Paths to programs
+    -f, --force   Overwrite existing programs
+    -c, --copy    Copy instead of symlinking
+    -m, --move    Move instead of symlinking
+    -n, --no-ext  Remove file extension
 
   remove
-    PROGRAM ...     Program names/paths or symlink target paths
-    -q, --quiet     Ignore arguments that match nothing
-    -t, --target    Only match symlink target paths
-    -a, --all       Remove all programs except this one
-    -s, --self      Remove this program itself
+    PROGRAM ...   Program names/paths or symlink target paths
+    -q, --quiet   Ignore arguments that match nothing
+    -t, --target  Only match symlink target paths
+    -a, --all     Remove all programs except this one
+    -s, --self    Remove this program itself
 `)
 }
 
@@ -130,13 +130,13 @@ func (c *command) install(opts options) {
 	force := opts.bool('f', "force")
 	copy := opts.bool('c', "copy")
 	move := opts.bool('m', "move")
-	dropExt := opts.bool('d', "drop-ext")
+	noExt := opts.bool('n', "no-ext")
 	c.validate(opts, atLeastOneArg)
 	if copy && move {
 		c.fatal("%s: cannot use --copy and --move together", c.name)
 	}
 	for _, arg := range opts.args {
-		ic, ok := newInstallCommand(c, arg, dropExt)
+		ic, ok := newInstallCommand(c, arg, noExt)
 		if !ok {
 			continue
 		}
@@ -159,7 +159,7 @@ type installCommand struct {
 	targetInfo                 fs.FileInfo
 }
 
-func newInstallCommand(cmd *command, arg string, dropExt bool) (installCommand, bool) {
+func newInstallCommand(cmd *command, arg string, noExt bool) (installCommand, bool) {
 	ic := installCommand{command: cmd, arg: arg}
 	var err error
 	if ic.targetInfo, err = os.Stat(arg); errors.Is(err, fs.ErrNotExist) {
@@ -178,7 +178,7 @@ func newInstallCommand(cmd *command, arg string, dropExt bool) (installCommand, 
 		ic.error("%s: file is already in %s", arg, ic.bin())
 	} else {
 		ic.name = filepath.Base(ic.absTarget)
-		if dropExt {
+		if noExt {
 			ic.name = strings.TrimSuffix(ic.name, filepath.Ext(ic.name))
 		}
 		ic.path = filepath.Join(ic.bin(), ic.name)

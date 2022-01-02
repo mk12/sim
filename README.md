@@ -28,22 +28,22 @@ Commands:
 
 Options:
   list
-    -p, --path      Print full paths
-    -t, --target    Print symlink targets
+    -p, --path    Print full paths
+    -t, --target  Print symlink targets
 
   install
-    PROGRAM ...     Paths to programs
-    -f, --force     Overwrite existing programs
-    -c, --copy      Copy instead of symlinking
-    -m, --move      Move instead of symlinking
-    -d, --drop-ext  Drop file extension
+    PROGRAM ...   Paths to programs
+    -f, --force   Overwrite existing programs
+    -c, --copy    Copy instead of symlinking
+    -m, --move    Move instead of symlinking
+    -n, --no-ext  Remove file extension
 
   remove
-    PROGRAM ...     Program names/paths or symlink target paths
-    -q, --quiet     Ignore arguments that match nothing
-    -t, --target    Only match symlink target paths
-    -a, --all       Remove all programs except this one
-    -s, --self      Remove this program itself
+    PROGRAM ...   Program names/paths or symlink target paths
+    -q, --quiet   Ignore arguments that match nothing
+    -t, --target  Only match symlink target paths
+    -a, --all     Remove all programs except this one
+    -s, --self    Remove this program itself
 ```
 
 ## License
