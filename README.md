@@ -15,7 +15,7 @@ If you no longer wish to use Sim, run `make uninstall`.
 `sim help`:
 
 ```
-Usage: sim [COMMAND] [OPTION ...]
+Usage: sim [-h] COMMAND
 
 Manage programs in $XDG_BIN_HOME.
 
@@ -32,22 +32,23 @@ Commands:
 `sim help install`:
 
 ```
-Usage: sim install [-hfcmn] PROGRAM ...
+Usage: sim install [-hfcmn] [-r NAME] PROGRAM ...
 
 Install each PROGRAM in $XDG_BIN_HOME.
 
 Options:
-  -h, --help    Show this help message
-  -f, --force   Overwrite existing programs
-  -c, --copy    Copy instead of symlinking
-  -m, --move    Move instead of symlinking
-  -n, --no-ext  Remove file extensions
+  -h, --help         Show this help message
+  -f, --force        Overwrite existing programs
+  -c, --copy         Copy instead of symlinking
+  -m, --move         Move instead of symlinking
+  -n, --no-ext       Remove file extensions
+  -r, --rename NAME  Rename single PROGRAM to NAME
 ```
 
 `sim help list`:
 
 ```
-Usage: sim list [-hplqt] [PROGRAM ...]
+Usage: sim list [-hpldtq] [PROGRAM ...]
 
 List each matching PROGRAM in $XDG_BIN_HOME.
 PROGRAM can be a basename, a full path, or a symlink target path.
@@ -56,24 +57,24 @@ Options:
   -h, --help    Show this help message
   -p, --path    Print full paths to programs
   -l, --long    Print symlink targets
+  -d, --direct  Do not match on symlink targets
+  -t, --target  Only match on symlink targets
   -q, --quiet   Ignore patterns that match nothing
-  -t, --target  Only match symlink target paths
 ```
 
 `sim help remove`:
 
 ```
-Usage: sim remove [-hasqt] [PROGRAM ...]
+Usage: sim remove [-hdtq] PROGRAM ...
 
 Remove each matching PROGRAM in $XDG_BIN_HOME.
 PROGRAM can be a basename, a full path, or a symlink target path.
 
 Options:
   -h, --help    Show this help message
-  -a, --all     Remove all programs except --self
-  -s, --self    Remove this program itself
-  -q, --quiet   Ignore arguments that match nothing
-  -t, --target  Only match symlink target paths
+  -d, --direct  Do not match on symlink targets
+  -t, --target  Only match on symlink targets
+  -q, --quiet   Ignore patterns that match nothing
 ```
 
 ## License
