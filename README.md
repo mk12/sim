@@ -12,38 +12,68 @@ If you no longer wish to use Sim, run `make uninstall`.
 
 ## Usage
 
+`sim help`:
+
 ```
 Usage: sim [COMMAND] [OPTION ...]
 
-Manage programs in $XDG_BIN_HOME
+Manage programs in $XDG_BIN_HOME.
 
 Commands:
-  help        Print help message
+  help        Show this help message
   path        Show install path
-  ls, list    List programs
   i, install  Install programs
+  ls, list    List programs
   rm, remove  Remove programs
   prune       Remove broken symlinks
   doctor      Check for issues
+```
+
+`sim help install`:
+
+```
+Usage: sim install [-hfcmn] PROGRAM ...
+
+Install each PROGRAM in $XDG_BIN_HOME.
 
 Options:
-  list
-    -p, --path    Print full paths
-    -t, --target  Print symlink targets
+  -h, --help    Show this help message
+  -f, --force   Overwrite existing programs
+  -c, --copy    Copy instead of symlinking
+  -m, --move    Move instead of symlinking
+  -n, --no-ext  Remove file extensions
+```
 
-  install
-    PROGRAM ...   Paths to programs
-    -f, --force   Overwrite existing programs
-    -c, --copy    Copy instead of symlinking
-    -m, --move    Move instead of symlinking
-    -n, --no-ext  Remove file extension
+`sim help list`:
 
-  remove
-    PROGRAM ...   Program names/paths or symlink target paths
-    -q, --quiet   Ignore arguments that match nothing
-    -t, --target  Only match symlink target paths
-    -a, --all     Remove all programs except this one
-    -s, --self    Remove this program itself
+```
+Usage: sim list [-hplqt] [PROGRAM ...]
+
+List each matching PROGRAM in $XDG_BIN_HOME.
+PROGRAM can be a basename, a full path, or a symlink target path.
+
+Options:
+  -h, --help    Show this help message
+  -p, --path    Print full paths to programs
+  -l, --long    Print symlink targets
+  -q, --quiet   Ignore patterns that match nothing
+  -t, --target  Only match symlink target paths
+```
+
+`sim help remove`:
+
+```
+Usage: sim remove [-hasqt] [PROGRAM ...]
+
+Remove each matching PROGRAM in $XDG_BIN_HOME.
+PROGRAM can be a basename, a full path, or a symlink target path.
+
+Options:
+  -h, --help    Show this help message
+  -a, --all     Remove all programs except --self
+  -s, --self    Remove this program itself
+  -q, --quiet   Ignore arguments that match nothing
+  -t, --target  Only match symlink target paths
 ```
 
 ## License

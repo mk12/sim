@@ -16,49 +16,75 @@ func usage() {
 	fmt.Printf("Usage: %s [COMMAND] [OPTION ...]", os.Args[0])
 	fmt.Print(`
 
-Manage programs in $XDG_BIN_HOME
+Manage programs in $XDG_BIN_HOME.
 
 Commands:
-  help        Print help message
+  help        Show this help message
   path        Show install path
   i, install  Install programs
   ls, list    List programs
   rm, remove  Remove programs
   prune       Remove broken symlinks
   doctor      Check for issues
+`)
+}
+
+func usageInstall() {
+	fmt.Printf("Usage: %s install [-hfcmn] PROGRAM ...", os.Args[0])
+	fmt.Print(`
+
+Install each PROGRAM in $XDG_BIN_HOME.
 
 Options:
-  install
-    PROGRAM ...   Paths to programs
-    -f, --force   Overwrite existing programs
-    -c, --copy    Copy instead of symlinking
-    -m, --move    Move instead of symlinking
-    -n, --no-ext  Remove file extensions
+  -h, --help    Show this help message
+  -f, --force   Overwrite existing programs
+  -c, --copy    Copy instead of symlinking
+  -m, --move    Move instead of symlinking
+  -n, --no-ext  Remove file extensions
+`)
+}
 
-  list
-    PROGRAM ...   Program names/paths or symlink target paths
-    -a, --all     List all programs (default)
-    -p, --path    Print full paths to programs
-    -l, --long    Print symlink targets
-    -q, --quiet   Ignore arguments that match nothing
-    -t, --target  Only match symlink target paths
+func usageList() {
+	fmt.Printf("Usage: %s list [-hplqt] [PROGRAM ...]", os.Args[0])
+	fmt.Print(`
 
-  remove
-    PROGRAM ...   Program names/paths or symlink target paths
-    -a, --all     Remove all programs except --self
-    -s, --self    Remove this program itself
-    -q, --quiet   Ignore arguments that match nothing
-    -t, --target  Only match symlink target paths
+List each matching PROGRAM in $XDG_BIN_HOME.
+PROGRAM can be a basename, a full path, or a symlink target path.
+
+Options:
+  -h, --help    Show this help message
+  -p, --path    Print full paths to programs
+  -l, --long    Print symlink targets
+  -q, --quiet   Ignore patterns that match nothing
+  -t, --target  Only match symlink target paths
+`)
+}
+
+func usageRemove() {
+	fmt.Printf("Usage: %s remove [-hasqt] [PROGRAM ...]", os.Args[0])
+	fmt.Print(`
+
+Remove each matching PROGRAM in $XDG_BIN_HOME.
+PROGRAM can be a basename, a full path, or a symlink target path.
+
+Options:
+  -h, --help    Show this help message
+  -a, --all     Remove all programs except --self
+  -s, --self    Remove this program itself
+  -q, --quiet   Ignore arguments that match nothing
+  -t, --target  Only match symlink target paths
 `)
 }
 
 func main() {
 	opts := parseOptions(os.Args[1:])
-	if len(opts.args) == 0 || opts.args[0] == "help" || opts.bool('h', "help") {
-		usage()
-		return
+	var name string
+	if opts.bool('h', "help") || len(opts.args) == 0 {
+		name = "help"
+	} else {
+		name = opts.shift()
 	}
-	cmd := command{name: opts.shift()}
+	cmd := command{name: name}
 	cmd.dispatch(opts)
 	if cmd.failed {
 		os.Exit(1)
@@ -73,6 +99,8 @@ type command struct {
 
 func (c *command) dispatch(opts options) {
 	switch c.name {
+	case "help":
+		c.help(opts)
 	case "path":
 		c.path(opts)
 	case "i", "install":
@@ -87,6 +115,26 @@ func (c *command) dispatch(opts options) {
 		c.doctor(opts)
 	default:
 		c.fatal("%s: unrecognized command", c.name)
+	}
+}
+
+func (c *command) help(opts options) {
+	c.validate(opts, anyArgs)
+	var name string
+	if len(opts.args) >= 1 {
+		name = opts.args[0]
+	}
+	switch name {
+	case "", "help", "path", "prune", "doctor":
+		usage()
+	case "i", "install":
+		usageInstall()
+	case "ls", "list":
+		usageList()
+	case "rm", "remove":
+		usageRemove()
+	default:
+		c.fatal("%s: unrecognized command", name)
 	}
 }
 
