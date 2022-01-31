@@ -24,7 +24,10 @@ install: $(installed)
 $(built): go.mod $(wildcard *.go)
 	go build -o $@
 
-$(installed): $(built)
+$(XDG_BIN_HOME):
+	mkdir -p $@
+
+$(installed): $(built) | $(XDG_BIN_HOME)
 	$< install $<
 
 ifneq (,$(wildcard $(installed)))
