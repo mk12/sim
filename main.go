@@ -227,7 +227,7 @@ func (c *installCommand) copy() {
 			fmt.Printf(" %s\n", brightBlack("(already installed)"))
 		} else {
 			fmt.Println()
-			c.error("%s: program exists (overwrite with --force)", c.arg)
+			c.error("%s: %s exists (overwrite with --force)", c.arg, c.name)
 		}
 		return
 	}
@@ -248,7 +248,7 @@ func (c *installCommand) move() {
 	if err == nil {
 		if !c.sameFileContent(info) {
 			fmt.Println()
-			c.error("%s: program exists (overwrite with --force)", c.arg)
+			c.error("%s: %s exists (overwrite with --force)", c.arg, c.name)
 			return
 		}
 		fmt.Printf(" %s\n", brightBlack("(already installed)"))
@@ -306,7 +306,7 @@ func (c *installCommand) symlink() {
 		}
 	}
 	fmt.Println()
-	c.error("%s: program exists (overwrite with --force)", c.arg)
+	c.error("%s: %s exists (overwrite with --force)", c.arg, c.name)
 }
 
 func (c *installCommand) sameFileContent(existingInfo fs.FileInfo) bool {
