@@ -80,9 +80,9 @@ Options:
 func main() {
 	opts := parseOptions(os.Args[1:])
 	var name string
-	if opts.bool('h', "help") || len(opts.args) == 0 {
+	if opts.bool('h', "help") || len(os.Args) == 1 {
 		name = "help"
-	} else {
+	} else if opts.first != -1 {
 		name = opts.shift()
 	}
 	cmd := command{name: name}
@@ -114,6 +114,8 @@ func (c *command) dispatch(opts *options) {
 		c.prune(opts)
 	case "doctor":
 		c.doctor(opts)
+	case "":
+		c.fatal("missing command")
 	default:
 		c.fatal("%s: unrecognized command", c.name)
 	}
@@ -547,6 +549,8 @@ type options struct {
 	// if it is followed by another flag or by nothing.
 	short map[rune]int
 	long  map[string]int
+	// Index of the first non-flag arg in args, or -1 if there is none.
+	first int
 	// Errors to report during validation.
 	errors []string
 }
@@ -559,10 +563,11 @@ func parseOptions(raw []string) *options {
 	opts := options{
 		short: make(map[rune]int),
 		long:  make(map[string]int),
+		first: -1,
 	}
 	var index int
 	nop := func() {}
-	setArgIndex := nop
+	setArgIndex := func() { opts.first = index }
 	processFlags := true
 	for _, arg := range raw {
 		if processFlags {
@@ -612,8 +617,12 @@ func parseOptions(raw []string) *options {
 }
 
 func (o *options) shift() string {
-	arg := o.args[0]
-	o.removeArg(0)
+	if o.first == -1 {
+		panic("nothing to shift")
+	}
+	arg := o.args[o.first]
+	o.removeArg(o.first)
+	o.first = -1
 	return arg
 }
 
