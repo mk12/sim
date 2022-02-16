@@ -79,13 +79,12 @@ Options:
 
 func main() {
 	opts := parseOptions(os.Args[1:])
-	var name string
-	if opts.bool('h', "help") || len(os.Args) == 1 {
-		name = "help"
-	} else if opts.first != -1 {
-		name = opts.shift()
+	cmd := command{name: "help"}
+	if !opts.bool('h', "help") {
+		if arg, ok := opts.shift(); ok {
+			cmd.name = arg
+		}
 	}
-	cmd := command{name: name}
 	cmd.dispatch(opts)
 	if cmd.failed {
 		os.Exit(1)
@@ -100,7 +99,7 @@ type command struct {
 
 func (c *command) dispatch(opts *options) {
 	switch c.name {
-	case "help":
+	case "h", "help":
 		c.help(opts)
 	case "path":
 		c.path(opts)
@@ -123,10 +122,7 @@ func (c *command) dispatch(opts *options) {
 
 func (c *command) help(opts *options) {
 	c.validate(opts, anyArgs)
-	var name string
-	if len(opts.args) >= 1 {
-		name = opts.args[0]
-	}
+	name := opts.tryShift()
 	switch name {
 	case "", "help", "path", "prune", "doctor":
 		usage()
@@ -546,11 +542,10 @@ func (c *command) fatal(format string, args ...interface{}) {
 type options struct {
 	args []string
 	// Maps each flag to the index of its potential argument in args, or to -1
-	// if it is followed by another flag or by nothing.
+	// if it is followed by another flag or by nothing. We don't map directly to
+	// strings because at this stage we don't know what flags take arguments.
 	short map[rune]int
 	long  map[string]int
-	// Index of the first non-flag arg in args, or -1 if there is none.
-	first int
 	// Errors to report during validation.
 	errors []string
 }
@@ -563,11 +558,10 @@ func parseOptions(raw []string) *options {
 	opts := options{
 		short: make(map[rune]int),
 		long:  make(map[string]int),
-		first: -1,
 	}
 	var index int
 	nop := func() {}
-	setArgIndex := func() { opts.first = index }
+	setArgIndex := nop
 	processFlags := true
 	for _, arg := range raw {
 		if processFlags {
@@ -616,13 +610,25 @@ func parseOptions(raw []string) *options {
 	return &opts
 }
 
-func (o *options) shift() string {
-	if o.first == -1 {
-		panic("nothing to shift")
+func (o *options) shift() (string, bool) {
+	flagArgs := make(map[int]struct{})
+	for _, i := range o.short {
+		flagArgs[i] = struct{}{}
 	}
-	arg := o.args[o.first]
-	o.removeArg(o.first)
-	o.first = -1
+	for _, i := range o.long {
+		flagArgs[i] = struct{}{}
+	}
+	for i, arg := range o.args {
+		if _, ok := flagArgs[i]; !ok {
+			o.removeArg(i)
+			return arg, true
+		}
+	}
+	return "", false
+}
+
+func (o *options) tryShift() string {
+	arg, _ := o.shift()
 	return arg
 }
 
