@@ -16,7 +16,7 @@ func usage() {
 	fmt.Printf("Usage: %s [-h] COMMAND", os.Args[0])
 	fmt.Print(`
 
-Manage programs in $XDG_BIN_HOME.
+Manage programs in $XDG_BIN_HOME
 
 Commands:
     help        Show this help message
@@ -33,7 +33,10 @@ func usageInstall() {
 	fmt.Printf("Usage: %s install [-hfcmn] [-r NAME] PROGRAM ...", os.Args[0])
 	fmt.Print(`
 
-Install each PROGRAM in $XDG_BIN_HOME.
+Install each PROGRAM in $XDG_BIN_HOME
+
+Arguments:
+    PROGRAM            Path to an executable
 
 Options:
     -h, --help         Show this help message
@@ -49,8 +52,10 @@ func usageList() {
 	fmt.Printf("Usage: %s list [-hpldtq] [PROGRAM ...]", os.Args[0])
 	fmt.Print(`
 
-List each matching PROGRAM in $XDG_BIN_HOME.
-PROGRAM can be a basename, a full path, or a symlink target path.
+List each matching PROGRAM in $XDG_BIN_HOME
+
+Arguments:
+    PROGRAM       Name or absolute path of a program, or symlink target path
 
 Options:
     -h, --help    Show this help message
@@ -66,8 +71,10 @@ func usageRemove() {
 	fmt.Printf("Usage: %s remove [-hdtq] PROGRAM ...", os.Args[0])
 	fmt.Print(`
 
-Remove each matching PROGRAM in $XDG_BIN_HOME.
-PROGRAM can be a basename, a full path, or a symlink target path.
+Remove each matching PROGRAM in $XDG_BIN_HOME
+
+Arguments:
+    PROGRAM       Name or absolute path of a program, or symlink target path
 
 Options:
     -h, --help    Show this help message
