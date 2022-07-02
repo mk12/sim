@@ -92,9 +92,10 @@ func main() {
 }
 
 type command struct {
-	name   string
-	failed bool
-	binDir string
+	name    string
+	failed  bool
+	homeDir string
+	binDir  string
 }
 
 func (c *command) dispatch(opts *options) {
@@ -521,7 +522,8 @@ func (c *command) doctor(opts *options) {
 			c.error("%s", err)
 			continue
 		}
-		if filepath.IsAbs(relOrAbsTarget) {
+		if filepath.IsAbs(relOrAbsTarget) &&
+			strings.HasPrefix(relOrAbsTarget, c.home()+string(filepath.Separator)) {
 			c.error("%s: symlink is absolute (should be relative)", path)
 			continue
 		}
@@ -731,17 +733,25 @@ func (c *command) validate(opts *options, validation argValidation) {
 	}
 }
 
+func (c *command) home() string {
+	if c.homeDir != "" {
+		return c.homeDir
+	}
+	var err error
+	c.homeDir, err = os.UserHomeDir()
+	if err != nil {
+		c.fatal("%s", err)
+	}
+	return c.homeDir
+}
+
 func (c *command) bin() string {
 	if c.binDir != "" {
 		return c.binDir
 	}
 	key := "XDG_BIN_HOME"
 	if c.binDir = os.Getenv(key); c.binDir == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			c.fatal("%s", err)
-		}
-		c.binDir = filepath.Join(home, ".local", "bin")
+		c.binDir = filepath.Join(c.home(), ".local", "bin")
 	} else if !filepath.IsAbs(c.binDir) {
 		c.fatal("%s: %s should be absolute", c.binDir, key)
 	}
