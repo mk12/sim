@@ -1,7 +1,6 @@
-XDG_BIN_HOME ?= ~/.local/bin
+# Copyright 2022 Mitchell Kember. Subject to the MIT License.
 
-built := out/sim
-installed := $(XDG_BIN_HOME)/$(notdir $(built))
+XDG_BIN_HOME ?= ~/.local/bin
 
 define usage
 Targets:
@@ -12,6 +11,11 @@ Targets:
 endef
 
 .PHONY: all help install uninstall
+
+.SUFFIXES:
+
+built := out/sim
+installed := $(XDG_BIN_HOME)/$(notdir $(built))
 
 all: $(built)
 
