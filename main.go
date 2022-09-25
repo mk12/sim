@@ -55,7 +55,7 @@ func usageList() {
 List each matching PROGRAM in $XDG_BIN_HOME
 
 Arguments:
-    PROGRAM       Name or absolute path of a program, or symlink target path
+    PROGRAM       Program name or path (for symlink, source or target)
 
 Options:
     -h, --help    Show this help message
@@ -74,7 +74,7 @@ func usageRemove() {
 Remove each matching PROGRAM in $XDG_BIN_HOME
 
 Arguments:
-    PROGRAM       Name or absolute path of a program, or symlink target path
+    PROGRAM       Program name or path (for symlink, source or target)
 
 Options:
     -h, --help    Show this help message
