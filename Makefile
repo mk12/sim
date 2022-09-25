@@ -6,7 +6,7 @@ Targets:
 	help       Show this help message
 	install    Install sim in $$XDG_BIN_HOME
 	uninstall  Uninstall sim
-	check      Format, lint, and build
+	check      Run before comitting
 	fmt        Format code
 	lint       Lint code
 	clean      Remove build output
@@ -16,7 +16,7 @@ endef
 
 XDG_BIN_HOME ?= ~/.local/bin
 
-bin := out/sim
+bin := bin/sim
 dest := $(XDG_BIN_HOME)/$(notdir $(bin))
 
 .SUFFIXES:
@@ -40,7 +40,7 @@ lint:
 	go mod tidy
 
 clean:
-	rm -rf out
+	rm -rf bin
 
 $(bin): go.mod $(wildcard *.go)
 	go build -o $@
